@@ -3,8 +3,9 @@ import time
 import json
 import random
 
-VK_GROUP_TOKEN = "vk1.a.aWY8BgVcxtZhln7eXLvXEMNUwOrSRc_-s8prwws9n3cEdhzW17g3w3IZgES2VDRgTbi7AqI26WOEcuVr9dWhAWXB1aayvhLwmvyMxZZEtyriLwvJK3w7D6i3AUKJ-bRep6DrfEhOkOoiC9uGv1uFalzVxBelUushlfeWTRQFQsu2eg6Llo2fEkhmTMpEG4BNyNhLeYlCDlrifX7fxbOWsw"  # Вставьте свой токен
-VK_GROUP_ID = 238447439  # Вставьте ID сообщества
+VK_GROUP_TOKEN = "vk1.a.aWY8BgVcxtZhln7eXLvXEMNUwOrSRc_-s8prwws9n3cEdhzW17g3w3IZgES2VDRgTbi7AqI26WOEcuVr9dWhAWXB1aayvhLwmvyMxZZEtyriLwvJK3w7D6i3AUKJ-bRep6DrfEhOkOoiC9uGv1uFalzVxBelUushlfeWTRQFQsu2eg6Llo2fEkhmTMpEG4BNyNhLeYlCDlrifX7fxbOWsw"  # ВСТАВЬТЕ СВОЙ ТОКЕН
+VK_GROUP_ID = 238447439
+ADMIN_ID = 138586192
 
 API_VERSION = "5.199"
 
@@ -192,7 +193,6 @@ while True:
             elif state == "awaiting_delivery":
                 user_data[user_id]["delivery"] = text
 
-                global order_counter
                 order_id = order_counter
                 order_counter += 1
 
@@ -226,8 +226,7 @@ while True:
 
                 send_message(peer_id, f"✨ Спасибо за доверие! ✨\n\n✅ Ваш заказ №{order_id} уже в работе.\n\n📋 Детали заказа:\n🚚 Тип: {delivery_text}\n📍 Откуда: {from_loc}\n🏁 Куда: {to_loc}\n📦 Груз: {user_data[user_id]['cargo']}\n📅 Забор: {user_data[user_id]['pickup']}\n📅 Доставка: {user_data[user_id]['delivery']}\n\n💰 Стоимость сообщит оператор.\n\n📞 Оператор свяжется с вами!", keyboard=get_main_keyboard())
 
-                # Уведомление админу (вставьте свой ID ВК)
-                ADMIN_ID = 138586192  # Вставьте свой числовой ID ВК
+                # Уведомление админу
                 admin_message = f"🔔 НОВЫЙ ЗАКАЗ #{order_id}!\n\n👤 Клиент: {user_data[user_id].get('name')}\n📞 Телефон: {user_data[user_id].get('phone')}\n🚚 Тип: {delivery_text}\n📍 {from_loc} → {to_loc}\n📦 {user_data[user_id]['cargo']}\n📅 Забор: {user_data[user_id]['pickup']}\n📅 Доставка: {user_data[user_id]['delivery']}"
                 send_message(ADMIN_ID, admin_message)
 
