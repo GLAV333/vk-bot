@@ -5,8 +5,8 @@ import datetime
 
 # ===== ВАШИ ДАННЫЕ (ОБЯЗАТЕЛЬНО ЗАМЕНИТЕ НА СВОИ!) =====
 VK_GROUP_TOKEN = "vk1.a.aWY8BgVcxtZhln7eXLvXEMNUwOrSRc_-s8prwws9n3cEdhzW17g3w3IZgES2VDRgTbi7AqI26WOEcuVr9dWhAWXB1aayvhLwmvyMxZZEtyriLwvJK3w7D6i3AUKJ-bRep6DrfEhOkOoiC9uGv1uFalzVxBelUushlfeWTRQFQsu2eg6Llo2fEkhmTMpEG4BNyNhLeYlCDlrifX7fxbOWsw"  # Токен сообщества
-VK_GROUP_ID = 123456789  # ID сообщества (только цифры)
-ADMIN_ID = 123456789  # Ваш личный ID ВКонтакте (куда приходят уведомления)
+VK_GROUP_ID = 238447439  # ID сообщества (только цифры)
+ADMIN_ID = 138586192  # Ваш личный ID ВКонтакте (куда приходят уведомления)
 # ======================================================
 
 # Фикс ошибки vkbottle
