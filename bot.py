@@ -1,50 +1,101 @@
-from vkbottle import Bot, Message
-from vkbottle.tools import BotKeyboard, KeyboardButtonColor
-from vkbottle_types import BaseModel
+import requests
+import time
+import json
 
-# Ваши данные (ОБЯЗАТЕЛЬНО ЗАМЕНИТЕ НА СВОИ!)
-VK_GROUP_TOKEN = "vk1.a.aWY8BgVcxtZhln7eXLvXEMNUwOrSRc_-s8prwws9n3cEdhzW17g3w3IZgES2VDRgTbi7AqI26WOEcuVr9dWhAWXB1aayvhLwmvyMxZZEtyriLwvJK3w7D6i3AUKJ-bRep6DrfEhOkOoiC9uGv1uFalzVxBelUushlfeWTRQFQsu2eg6Llo2fEkhmTMpEG4BNyNhLeYlCDlrifX7fxbOWsw"  # Ваш токен в кавычках
-VK_GROUP_ID = 238447439  # Ваш ID сообщества (только цифры)
+VK_GROUP_TOKEN = "vk1.a.aWY8BgVcxtZhln7eXLvXEMNUwOrSRc_-s8prwws9n3cEdhzW17g3w3IZgES2VDRgTbi7AqI26WOEcuVr9dWhAWXB1aayvhLwmvyMxZZEtyriLwvJK3w7D6i3AUKJ-bRep6DrfEhOkOoiC9uGv1uFalzVxBelUushlfeWTRQFQsu2eg6Llo2fEkhmTMpEG4BNyNhLeYlCDlrifX7fxbOWsw"
+VK_GROUP_ID = 238447439  # цифры
 
-# Добавляем класс для исправления ошибки
-class StatePeer(BaseModel):
-    id: int
-    type: str
+API_VERSION = "5.199"
 
-bot = Bot(token=VK_GROUP_TOKEN)
+def send_message(peer_id, text, keyboard=None):
+    url = "https://api.vk.com/method/messages.send"
+    payload = {
+        "access_token": VK_GROUP_TOKEN,
+        "v": API_VERSION,
+        "peer_id": peer_id,
+        "message": text,
+        "random_id": 0
+    }
+    if keyboard:
+        payload["keyboard"] = json.dumps(keyboard)
+    requests.post(url, data=payload)
 
-# Клавиатура
-def main_keyboard():
-    kb = BotKeyboard()
-    kb.add_button("📦 Заказать", color=KeyboardButtonColor.POSITIVE)
-    kb.add_button("💰 Цена", color=KeyboardButtonColor.SECONDARY)
-    kb.add_row()
-    kb.add_button("📋 Мои заказы", color=KeyboardButtonColor.DEFAULT)
-    kb.add_button("ℹ️ Данные", color=KeyboardButtonColor.SECONDARY)
-    return kb
+def get_keyboard():
+    return {
+        "one_time": False,
+        "buttons": [
+            [{"action": {"type": "text", "label": "📦 Заказать"}, "color": "positive"}],
+            [{"action": {"type": "text", "label": "💰 Цена"}, "color": "secondary"}],
+            [{"action": {"type": "text", "label": "📋 Мои заказы"}, "color": "default"}],
+            [{"action": {"type": "text", "label": "ℹ️ Данные"}, "color": "secondary"}]
+        ]
+    }
 
-@bot.on.private_message(text="/start")
-async def start(message: Message):
-    await message.answer("Привет! Я бот доставки.", keyboard=main_keyboard())
+print("Бот запущен и слушает Long Poll...")
 
-@bot.on.private_message(text="💰 Цена")
-async def price(message: Message):
-    await message.answer("Тарифы: по городу от 500₽, межгород от 35₽/км")
+# Получаем Long Poll сервер
+server_url = None
+key = None
+ts = None
 
-@bot.on.private_message(text="📦 Заказать")
-async def order(message: Message):
-    await message.answer("🚧 Заказы скоро появятся!")
+while True:
+    if not server_url:
+        # Получаем параметры Long Poll
+        resp = requests.get("https://api.vk.com/method/groups.getLongPollServer", params={
+            "access_token": VK_GROUP_TOKEN,
+            "v": API_VERSION,
+            "group_id": VK_GROUP_ID
+        }).json()
+        if "response" in resp:
+            data = resp["response"]
+            server_url = data["server"]
+            key = data["key"]
+            ts = data["ts"]
+            print("Long Poll сервер получен")
+        else:
+            print("Ошибка получения сервера:", resp)
+            time.sleep(5)
+            continue
 
-@bot.on.private_message(text="📋 Мои заказы")
-async def orders(message: Message):
-    await message.answer("У вас пока нет заказов.")
+    # Запрос к Long Poll
+    try:
+        resp = requests.get(server_url, params={
+            "act": "a_check",
+            "key": key,
+            "ts": ts,
+            "wait": 25
+        }).json()
+    except Exception as e:
+        print("Ошибка запроса:", e)
+        server_url = None
+        continue
 
-@bot.on.private_message(text="ℹ️ Данные")
-async def data(message: Message):
-    await message.answer("Вы не зарегистрированы. Скоро добавим регистрацию.")
+    if "failed" in resp:
+        print("Long Poll failed, переподключаемся")
+        server_url = None
+        time.sleep(1)
+        continue
 
-print("✅ Бот ВКонтакте запущен!")
-bot.run_polling()
+    ts = resp["ts"]
+    updates = resp.get("updates", [])
+    for upd in updates:
+        if upd.get("type") == "message_new":
+            msg = upd["object"]["message"]
+            peer_id = msg["peer_id"]
+            text = msg.get("text", "")
+            if text == "/start":
+                send_message(peer_id, "Привет! Я бот доставки.", keyboard=get_keyboard())
+            elif text == "💰 Цена":
+                send_message(peer_id, "Тарифы: по городу от 500₽, межгород от 35₽/км")
+            elif text == "📦 Заказать":
+                send_message(peer_id, "🚧 Заказы скоро появятся!")
+            elif text == "📋 Мои заказы":
+                send_message(peer_id, "У вас пока нет заказов.")
+            elif text == "ℹ️ Данные":
+                send_message(peer_id, "Вы не зарегистрированы. Скоро добавим регистрацию.")
+            else:
+                send_message(peer_id, "Используйте кнопки меню.", keyboard=get_keyboard())
+
 
 
 
