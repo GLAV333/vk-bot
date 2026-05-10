@@ -1,265 +1,233 @@
-import requests
-import time
-import json
-import random
+from vkbottle import Bot, Message
+from vkbottle.tools import BotKeyboard, KeyboardButtonColor
+from vkbottle_types import BaseModel
+import datetime
 
-VK_GROUP_TOKEN = "vk1.a.aWY8BgVcxtZhln7eXLvXEMNUwOrSRc_-s8prwws9n3cEdhzW17g3w3IZgES2VDRgTbi7AqI26WOEcuVr9dWhAWXB1aayvhLwmvyMxZZEtyriLwvJK3w7D6i3AUKJ-bRep6DrfEhOkOoiC9uGv1uFalzVxBelUushlfeWTRQFQsu2eg6Llo2fEkhmTMpEG4BNyNhLeYlCDlrifX7fxbOWsw"  # ВСТАВЬТЕ СВОЙ ТОКЕН
-VK_GROUP_ID = 238447439
-ADMIN_ID = 138586192
+# ===== ВАШИ ДАННЫЕ (ОБЯЗАТЕЛЬНО ЗАМЕНИТЕ НА СВОИ!) =====
+VK_GROUP_TOKEN = "vk1.a.aWY8BgVcxtZhln7eXLvXEMNUwOrSRc_-s8prwws9n3cEdhzW17g3w3IZgES2VDRgTbi7AqI26WOEcuVr9dWhAWXB1aayvhLwmvyMxZZEtyriLwvJK3w7D6i3AUKJ-bRep6DrfEhOkOoiC9uGv1uFalzVxBelUushlfeWTRQFQsu2eg6Llo2fEkhmTMpEG4BNyNhLeYlCDlrifX7fxbOWsw"  # Токен сообщества
+VK_GROUP_ID = 123456789  # ID сообщества (только цифры)
+ADMIN_ID = 123456789  # Ваш личный ID ВКонтакте (куда приходят уведомления)
+# ======================================================
 
-API_VERSION = "5.199"
+# Фикс ошибки vkbottle
+class StatePeer(BaseModel):
+    id: int
+    type: str
 
-# Хранилище данных пользователей (в оперативной памяти)
-user_data = {}
-# Хранилище заказов
-orders = {}
-order_counter = 1
+bot = Bot(token=VK_GROUP_TOKEN)
 
-def send_message(peer_id, text, keyboard=None):
-    url = "https://api.vk.com/method/messages.send"
-    payload = {
-        "access_token": VK_GROUP_TOKEN,
-        "v": API_VERSION,
-        "peer_id": peer_id,
-        "message": text,
-        "random_id": random.randint(1, 999999999)
-    }
-    if keyboard:
-        payload["keyboard"] = json.dumps(keyboard)
-    requests.post(url, data=payload)
+# Хранилище заказов пользователей (в памяти)
+user_orders = {}
 
-# Клавиатура главного меню
-def get_main_keyboard():
-    return {
-        "one_time": False,
-        "buttons": [
-            [{"action": {"type": "text", "label": "📦 Заказать доставку"}, "color": "positive"}],
-            [{"action": {"type": "text", "label": "💰 Узнать цену"}, "color": "secondary"}],
-            [{"action": {"type": "text", "label": "📋 Мои заказы"}, "color": "default"}],
-            [{"action": {"type": "text", "label": "ℹ️ Мои данные"}, "color": "secondary"}]
-        ]
-    }
+# === КЛАВИАТУРЫ ===
+def main_keyboard():
+    kb = BotKeyboard()
+    kb.add_button("📦 Заказать доставку", color=KeyboardButtonColor.POSITIVE)
+    kb.add_row()
+    kb.add_button("💰 Узнать цену", color=KeyboardButtonColor.SECONDARY)
+    kb.add_row()
+    kb.add_button("📋 Мои заказы", color=KeyboardButtonColor.DEFAULT)
+    return kb
 
-# Клавиатура выбора типа доставки
-def get_delivery_type_keyboard():
-    return {
-        "one_time": True,
-        "buttons": [
-            [{"action": {"type": "text", "label": "🏙️ Доставка по городу"}, "color": "positive"}],
-            [{"action": {"type": "text", "label": "🌍 Межгород"}, "color": "positive"}]
-        ]
-    }
+def delivery_type_keyboard():
+    kb = BotKeyboard()
+    kb.add_button("🏙️ По городу", color=KeyboardButtonColor.PRIMARY)
+    kb.add_button("🌍 Межгород", color=KeyboardButtonColor.PRIMARY)
+    return kb
 
-def get_status_text(status):
-    statuses = {
-        'new': '🆕 Новый',
-        'processing': '🔄 В обработке',
-        'delivering': '🚚 В пути',
-        'completed': '✅ Доставлен'
-    }
-    return statuses.get(status, '🆕 Новый')
+# === ОБРАБОТЧИКИ КОМАНД ===
 
-print("✅ Бот ВКонтакте запущен и слушает Long Poll...")
+# Приветственное сообщение
+@bot.on.private_message(text="старт")
+async def start_handler(message: Message):
+    await message.answer(
+        "Здравствуйте!\n\n"
+        "📦 Чтобы заказать доставку, нажмите кнопку «Заказать доставку» ниже.\n"
+        "Наш бот поможет вам быстро оформить заказ.\n\n"
+        "✅ После оформления заказа я отвечу вам в кратчайшие сроки, чтобы уточнить детали и рассчитать точную стоимость.\n\n"
+        "💰 Тарифы:\n• По городу Владимир — от 500₽\n• Межгород — от 35₽/км",
+        keyboard=main_keyboard()
+    )
 
-# Получаем Long Poll сервер
-server_url = None
-key = None
-ts = None
+# Узнать цену
+@bot.on.private_message(text="💰 Узнать цену")
+async def price_handler(message: Message):
+    await message.answer(
+        "🚚 Наши тарифы:\n\n"
+        "🏙️ Доставка по городу Владимир — от 500₽\n"
+        "🌍 Межгород — от 35₽/км\n\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "⚠️ Доставка осуществляется легковыми автомобилями.\n"
+        "📦 Ограничения по грузу:\n"
+        "• Вес: до 100 кг\n"
+        "• Высота: до 1 м\n"
+        "• Длина: до 2 м\n"
+        "• Ширина: до 1.3 м"
+    )
 
-while True:
-    if not server_url:
-        resp = requests.get("https://api.vk.com/method/groups.getLongPollServer", params={
-            "access_token": VK_GROUP_TOKEN,
-            "v": API_VERSION,
-            "group_id": VK_GROUP_ID
-        }).json()
-        if "response" in resp:
-            data = resp["response"]
-            server_url = data["server"]
-            key = data["key"]
-            ts = data["ts"]
-            print("Long Poll сервер получен")
+# Мои заказы
+@bot.on.private_message(text="📋 Мои заказы")
+async def my_orders_handler(message: Message):
+    user_id = message.from_id
+    if user_id in user_orders and user_orders[user_id]:
+        orders_list = "\n\n".join([f"📦 Заказ #{i+1}:\n{order}" for i, order in enumerate(user_orders[user_id])])
+        await message.answer(f"📋 Ваши заказы:\n\n{orders_list}")
+    else:
+        await message.answer("📭 У вас пока нет заказов.\n\nЧтобы сделать заказ, нажмите «📦 Заказать доставку».")
+
+# === ЛОГИКА ЗАКАЗА ===
+
+# Начало заказа
+@bot.on.private_message(text="📦 Заказать доставку")
+async def order_start(message: Message):
+    user_id = message.from_id
+    # Инициализируем хранилище для пользователя
+    if user_id not in user_orders:
+        user_orders[user_id] = []
+    
+    # Временное хранилище для текущего заказа
+    if not hasattr(bot, "temp_orders"):
+        bot.temp_orders = {}
+    bot.temp_orders[user_id] = {"step": "awaiting_type"}
+    
+    await message.answer("Выберите тип доставки:", keyboard=delivery_type_keyboard())
+
+# Обработка выбора типа доставки
+@bot.on.private_message(text=["🏙️ По городу", "🌍 Межгород"])
+async def delivery_type_handler(message: Message):
+    user_id = message.from_id
+    if not hasattr(bot, "temp_orders") or user_id not in bot.temp_orders:
+        await message.answer("Начните заказ сначала: нажмите «📦 Заказать доставку»")
+        return
+    
+    if message.text == "🏙️ По городу":
+        bot.temp_orders[user_id]["type"] = "city"
+        bot.temp_orders[user_id]["step"] = "awaiting_from_addr"
+        await message.answer("Введите адрес отправления (улица, дом):")
+    else:
+        bot.temp_orders[user_id]["type"] = "intercity"
+        bot.temp_orders[user_id]["step"] = "awaiting_from_city"
+        await message.answer("Введите ГОРОД отправления:")
+
+# Основной обработчик шагов заказа
+@bot.on.private_message()
+async def order_steps(message: Message):
+    user_id = message.from_id
+    text = message.text
+    
+    # Пропускаем команды и кнопки, чтобы не мешали
+    if text in ["📦 Заказать доставку", "💰 Узнать цену", "📋 Мои заказы", "🏙️ По городу", "🌍 Межгород", "старт"]:
+        return
+    
+    if not hasattr(bot, "temp_orders") or user_id not in bot.temp_orders:
+        return
+    
+    step = bot.temp_orders[user_id].get("step")
+    
+    # === Городская доставка ===
+    if step == "awaiting_from_addr":
+        bot.temp_orders[user_id]["from_addr"] = text
+        bot.temp_orders[user_id]["step"] = "awaiting_to_addr"
+        await message.answer("Введите адрес доставки (улица, дом):")
+    
+    elif step == "awaiting_to_addr":
+        bot.temp_orders[user_id]["to_addr"] = text
+        bot.temp_orders[user_id]["step"] = "awaiting_cargo"
+        await message.answer("Опишите груз (вес, габариты):")
+    
+    # === Межгород ===
+    elif step == "awaiting_from_city":
+        bot.temp_orders[user_id]["from_city"] = text
+        bot.temp_orders[user_id]["step"] = "awaiting_from_addr_intercity"
+        await message.answer("Введите АДРЕС в городе отправления:")
+    
+    elif step == "awaiting_from_addr_intercity":
+        bot.temp_orders[user_id]["from_addr"] = text
+        bot.temp_orders[user_id]["step"] = "awaiting_to_city"
+        await message.answer("Введите ГОРОД назначения:")
+    
+    elif step == "awaiting_to_city":
+        bot.temp_orders[user_id]["to_city"] = text
+        bot.temp_orders[user_id]["step"] = "awaiting_to_addr_intercity"
+        await message.answer("Введите АДРЕС в городе назначения:")
+    
+    elif step == "awaiting_to_addr_intercity":
+        bot.temp_orders[user_id]["to_addr"] = text
+        bot.temp_orders[user_id]["step"] = "awaiting_cargo"
+        await message.answer("Опишите груз (вес, габариты):")
+    
+    # === Общие шаги ===
+    elif step == "awaiting_cargo":
+        bot.temp_orders[user_id]["cargo"] = text
+        bot.temp_orders[user_id]["step"] = "awaiting_pickup"
+        await message.answer("📅 Когда забрать груз?\n(например: сегодня до 18:00)")
+    
+    elif step == "awaiting_pickup":
+        bot.temp_orders[user_id]["pickup"] = text
+        bot.temp_orders[user_id]["step"] = "awaiting_delivery"
+        await message.answer("📅 Когда доставить груз?\n(например: завтра к 12:00)")
+    
+    elif step == "awaiting_delivery":
+        bot.temp_orders[user_id]["delivery"] = text
+        
+        # Формируем текст заказа
+        order = bot.temp_orders[user_id]
+        if order["type"] == "city":
+            from_text = order["from_addr"]
+            to_text = order["to_addr"]
+            delivery_type_text = "По городу"
         else:
-            print("Ошибка получения сервера:", resp)
-            time.sleep(5)
-            continue
+            from_text = f"{order['from_city']}, {order['from_addr']}"
+            to_text = f"{order['to_city']}, {order['to_addr']}"
+            delivery_type_text = "Межгород"
+        
+        # Сохраняем заказ в историю пользователя
+        order_summary = (
+            f"🚚 {delivery_type_text}\n"
+            f"📍 Откуда: {from_text}\n"
+            f"🏁 Куда: {to_text}\n"
+            f"📦 Груз: {order['cargo']}\n"
+            f"📅 Забрать: {order['pickup']}\n"
+            f"📅 Доставить: {order['delivery']}"
+        )
+        user_orders[user_id].append(order_summary)
+        
+        # Отправляем уведомление АДМИНУ (если заказ не от самого админа)
+        if user_id != ADMIN_ID:
+            # Получаем информацию о пользователе
+            user_info = await bot.api.users.get(user_ids=user_id)
+            user_name = f"{user_info[0].first_name} {user_info[0].last_name}" if user_info else f"id{user_id}"
+            
+            await bot.api.messages.send(
+                peer_id=ADMIN_ID,
+                message=f"🔔 НОВЫЙ ЗАКАЗ!\n\n"
+                        f"👤 Клиент: {user_name}\n"
+                        f"🔗 Ссылка: vk.com/id{user_id}\n"
+                        f"🚚 Тип: {delivery_type_text}\n"
+                        f"📍 Откуда: {from_text}\n"
+                        f"🏁 Куда: {to_text}\n"
+                        f"📦 Груз: {order['cargo']}\n"
+                        f"📅 Забрать: {order['pickup']}\n"
+                        f"📅 Доставить: {order['delivery']}",
+                random_id=0
+            )
+        
+        # Ответ клиенту
+        await message.answer(
+            f"✨ Спасибо за заказ! ✨\n\n"
+            f"✅ Заказ принят!\n\n"
+            f"📋 Детали:\n"
+            f"📍 Откуда: {from_text}\n"
+            f"🏁 Куда: {to_text}\n"
+            f"📦 Груз: {order['cargo']}\n"
+            f"📅 Забрать: {order['pickup']}\n"
+            f"📅 Доставить: {order['delivery']}\n\n"
+            f"💰 Стоимость рассчитаю и сообщу вам в ближайшее время.",
+            keyboard=main_keyboard()
+        )
+        
+        # Очищаем временные данные
+        del bot.temp_orders[user_id]
 
-    try:
-        resp = requests.get(server_url, params={
-            "act": "a_check",
-            "key": key,
-            "ts": ts,
-            "wait": 25
-        }).json()
-    except Exception as e:
-        print("Ошибка запроса:", e)
-        server_url = None
-        continue
-
-    if "failed" in resp:
-        print("Long Poll failed, переподключаемся")
-        server_url = None
-        time.sleep(1)
-        continue
-
-    ts = resp["ts"]
-    updates = resp.get("updates", [])
-    for upd in updates:
-        if upd.get("type") == "message_new":
-            msg = upd["object"]["message"]
-            peer_id = msg["peer_id"]
-            text = msg.get("text", "")
-            user_id = peer_id
-
-            # Инициализация данных пользователя
-            if user_id not in user_data:
-                user_data[user_id] = {}
-
-            state = user_data[user_id].get("state", "none")
-
-            # Обработка команды /start
-            if text == "/start":
-                if user_data[user_id].get("phone"):
-                    send_message(peer_id, f"С возвращением, {user_data[user_id].get('name', 'пользователь')}!", keyboard=get_main_keyboard())
-                else:
-                    send_message(peer_id, "👋 Привет! Я бот доставки.\nДля регистрации отправьте ваш номер телефона:")
-                    user_data[user_id]["state"] = "awaiting_phone"
-
-            # Регистрация: ожидание номера телефона
-            elif state == "awaiting_phone":
-                user_data[user_id]["phone"] = text
-                user_data[user_id]["state"] = "awaiting_name"
-                send_message(peer_id, "📝 Введите ваше ИМЯ (как к вам обращаться):")
-
-            # Регистрация: ожидание имени
-            elif state == "awaiting_name":
-                user_data[user_id]["name"] = text
-                user_data[user_id]["state"] = "registered"
-                send_message(peer_id, f"✅ Регистрация успешна, {text}!\n📞 Телефон: {user_data[user_id]['phone']}", keyboard=get_main_keyboard())
-
-            # Обработка кнопки "Заказать доставку"
-            elif text == "📦 Заказать доставку":
-                if user_data[user_id].get("state") != "registered":
-                    send_message(peer_id, "Сначала зарегистрируйтесь — отправьте /start")
-                else:
-                    user_data[user_id]["state"] = "awaiting_delivery_type"
-                    send_message(peer_id, "Выберите тип доставки:", keyboard=get_delivery_type_keyboard())
-
-            # Выбор типа доставки: по городу
-            elif text == "🏙️ Доставка по городу":
-                user_data[user_id]["delivery_type"] = "city"
-                user_data[user_id]["state"] = "awaiting_city_from_address"
-                send_message(peer_id, "Введите адрес отправления (улица, дом):")
-
-            # Выбор типа доставки: межгород
-            elif text == "🌍 Межгород":
-                user_data[user_id]["delivery_type"] = "intercity"
-                user_data[user_id]["state"] = "awaiting_intercity_from_city"
-                send_message(peer_id, "Введите ГОРОД отправления:")
-
-            # Логика заказа
-            elif state == "awaiting_city_from_address":
-                user_data[user_id]["from_address"] = text
-                user_data[user_id]["state"] = "awaiting_city_to_address"
-                send_message(peer_id, "Введите адрес доставки (улица, дом):")
-            elif state == "awaiting_city_to_address":
-                user_data[user_id]["to_address"] = text
-                user_data[user_id]["state"] = "awaiting_cargo"
-                send_message(peer_id, "Опишите груз (вес, габариты):")
-            elif state == "awaiting_intercity_from_city":
-                user_data[user_id]["from_city"] = text
-                user_data[user_id]["state"] = "awaiting_intercity_from_address"
-                send_message(peer_id, "Введите АДРЕС в городе отправления:")
-            elif state == "awaiting_intercity_from_address":
-                user_data[user_id]["from_address"] = text
-                user_data[user_id]["state"] = "awaiting_intercity_to_city"
-                send_message(peer_id, "Введите ГОРОД назначения:")
-            elif state == "awaiting_intercity_to_city":
-                user_data[user_id]["to_city"] = text
-                user_data[user_id]["state"] = "awaiting_intercity_to_address"
-                send_message(peer_id, "Введите АДРЕС в городе назначения:")
-            elif state == "awaiting_intercity_to_address":
-                user_data[user_id]["to_address"] = text
-                user_data[user_id]["state"] = "awaiting_cargo"
-                send_message(peer_id, "Опишите груз (вес, габариты):")
-            elif state == "awaiting_cargo":
-                user_data[user_id]["cargo"] = text
-                user_data[user_id]["state"] = "awaiting_pickup"
-                send_message(peer_id, "📅 Когда забрать груз?\n(например: сегодня до 18:00)")
-            elif state == "awaiting_pickup":
-                user_data[user_id]["pickup"] = text
-                user_data[user_id]["state"] = "awaiting_delivery"
-                send_message(peer_id, "📅 Когда доставить груз?\n(например: завтра к 12:00)")
-            elif state == "awaiting_delivery":
-                user_data[user_id]["delivery"] = text
-
-                order_id = order_counter
-                order_counter += 1
-
-                delivery_type = user_data[user_id]["delivery_type"]
-                if delivery_type == "city":
-                    from_loc = user_data[user_id]["from_address"]
-                    to_loc = user_data[user_id]["to_address"]
-                else:
-                    from_loc = f"{user_data[user_id]['from_city']}, {user_data[user_id]['from_address']}"
-                    to_loc = f"{user_data[user_id]['to_city']}, {user_data[user_id]['to_address']}"
-
-                orders[order_id] = {
-                    "order_id": order_id,
-                    "user_id": user_id,
-                    "delivery_type": delivery_type,
-                    "from_loc": from_loc,
-                    "to_loc": to_loc,
-                    "cargo": user_data[user_id]["cargo"],
-                    "pickup": user_data[user_id]["pickup"],
-                    "delivery": user_data[user_id]["delivery"],
-                    "status": "new",
-                    "customer_name": user_data[user_id].get("name"),
-                    "customer_phone": user_data[user_id].get("phone")
-                }
-
-                if "my_orders" not in user_data[user_id]:
-                    user_data[user_id]["my_orders"] = []
-                user_data[user_id]["my_orders"].append(order_id)
-
-                delivery_text = "🏙️ Доставка по городу" if delivery_type == "city" else "🌍 Межгород"
-
-                send_message(peer_id, f"✨ Спасибо за доверие! ✨\n\n✅ Ваш заказ №{order_id} уже в работе.\n\n📋 Детали заказа:\n🚚 Тип: {delivery_text}\n📍 Откуда: {from_loc}\n🏁 Куда: {to_loc}\n📦 Груз: {user_data[user_id]['cargo']}\n📅 Забор: {user_data[user_id]['pickup']}\n📅 Доставка: {user_data[user_id]['delivery']}\n\n💰 Стоимость сообщит оператор.\n\n📞 Оператор свяжется с вами!", keyboard=get_main_keyboard())
-
-                # Уведомление админу
-                admin_message = f"🔔 НОВЫЙ ЗАКАЗ #{order_id}!\n\n👤 Клиент: {user_data[user_id].get('name')}\n📞 Телефон: {user_data[user_id].get('phone')}\n🚚 Тип: {delivery_text}\n📍 {from_loc} → {to_loc}\n📦 {user_data[user_id]['cargo']}\n📅 Забор: {user_data[user_id]['pickup']}\n📅 Доставка: {user_data[user_id]['delivery']}"
-                send_message(ADMIN_ID, admin_message)
-
-                user_data[user_id]["state"] = "registered"
-
-            # Кнопка "Узнать цену"
-            elif text == "💰 Узнать цену":
-                send_message(peer_id, "🚚 Наши тарифы:\n\n🏙️ Доставка по городу Владимир\nот 500 рублей\n\n🌍 Межгород\nот 35 руб/км\n\n━━━━━━━━━━━━━━━━━━\n⚠️ Доставка осуществляется легковыми автомобилями.\n\n📦 Ограничения:\n• Вес: до 100 кг\n• Высота: до 1 м\n• Длина: до 2 м\n• Ширина: до 1.3 м\n\n📞 Для точного расчёта свяжитесь с оператором")
-
-            # Кнопка "Мои заказы"
-            elif text == "📋 Мои заказы":
-                my_orders_ids = user_data[user_id].get("my_orders", [])
-                if not my_orders_ids:
-                    send_message(peer_id, "📭 У вас пока нет заказов.", keyboard=get_main_keyboard())
-                else:
-                    result = "📋 Ваши заказы:\n\n"
-                    for oid in my_orders_ids:
-                        if oid in orders:
-                            o = orders[oid]
-                            delivery_type_text = "🏙️ По городу" if o["delivery_type"] == "city" else "🌍 Межгород"
-                            result += f"📦 Заказ #{oid} | {delivery_type_text}\n📍 {o['from_loc']} → {o['to_loc']}\n📊 Статус: {get_status_text(o['status'])}\n────────────────────\n"
-                    send_message(peer_id, result, keyboard=get_main_keyboard())
-
-            # Кнопка "Мои данные"
-            elif text == "ℹ️ Мои данные":
-                if user_data[user_id].get("state") == "registered":
-                    send_message(peer_id, f"👤 Имя: {user_data[user_id].get('name')}\n📞 Телефон: {user_data[user_id].get('phone')}", keyboard=get_main_keyboard())
-                else:
-                    send_message(peer_id, "Вы не зарегистрированы. Отправьте /start")
-
-            # Нераспознанная команда
-            else:
-                if user_data[user_id].get("state") == "registered":
-                    send_message(peer_id, "Используйте кнопки меню.", keyboard=get_main_keyboard())
-                else:
-                    send_message(peer_id, "Отправьте /start для регистрации")
+print("✅ Бот ВКонтакте успешно запущен!")
+bot.run_polling()
