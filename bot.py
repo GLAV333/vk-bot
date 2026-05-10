@@ -1,8 +1,15 @@
 from vkbottle import Bot, Message
 from vkbottle.tools import BotKeyboard, KeyboardButtonColor
+from vkbottle_types import BaseModel
 
-VK_GROUP_ID = 238447439  # цифры из ID сообщества
-VK_GROUP_TOKEN = "vk1.a.aWY8BgVcxtZhln7eXLvXEMNUwOrSRc_-s8prwws9n3cEdhzW17g3w3IZgES2VDRgTbi7AqI26WOEcuVr9dWhAWXB1aayvhLwmvyMxZZEtyriLwvJK3w7D6i3AUKJ-bRep6DrfEhOkOoiC9uGv1uFalzVxBelUushlfeWTRQFQsu2eg6Llo2fEkhmTMpEG4BNyNhLeYlCDlrifX7fxbOWsw"
+# Ваши данные (ОБЯЗАТЕЛЬНО ЗАМЕНИТЕ НА СВОИ!)
+VK_GROUP_TOKEN = "vk1.a.aWY8BgVcxtZhln7eXLvXEMNUwOrSRc_-s8prwws9n3cEdhzW17g3w3IZgES2VDRgTbi7AqI26WOEcuVr9dWhAWXB1aayvhLwmvyMxZZEtyriLwvJK3w7D6i3AUKJ-bRep6DrfEhOkOoiC9uGv1uFalzVxBelUushlfeWTRQFQsu2eg6Llo2fEkhmTMpEG4BNyNhLeYlCDlrifX7fxbOWsw"  # Ваш токен в кавычках
+VK_GROUP_ID = 238447439  # Ваш ID сообщества (только цифры)
+
+# Добавляем класс для исправления ошибки
+class StatePeer(BaseModel):
+    id: int
+    type: str
 
 bot = Bot(token=VK_GROUP_TOKEN)
 
@@ -36,8 +43,9 @@ async def orders(message: Message):
 async def data(message: Message):
     await message.answer("Вы не зарегистрированы. Скоро добавим регистрацию.")
 
-print("Бот запущен!")
+print("✅ Бот ВКонтакте запущен!")
 bot.run_polling()
+
 
 
 
